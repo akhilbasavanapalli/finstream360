@@ -1,0 +1,155 @@
+{
+  "name": "pl_finstream360_ingest_transactions",
+  "properties": {
+    "description": "FinStream360 | Ingest raw transaction Parquet files from ADLS landing zone into the Bronze Delta table via a parameterized ADF pipeline.",
+    "activities": [
+      {
+        "name": "GetMetadata_LandingFiles",
+        "type": "GetMetadata",
+        "dependsOn": [],
+        "policy": { "timeout": "00:05:00", "retry": 2, "retryIntervalInSeconds": 30 },
+        "typeProperties": {
+          "dataset": { "referenceName": "ds_adls_landing_parquet", "type": "DatasetReference" },
+          "fieldList": ["childItems", "lastModified"],
+          "storeSettings": {
+            "type": "AzureBlobFSReadSettings",
+            "recursive": false,
+            "enablePartitionDiscovery": false
+          }
+        }
+      },
+      {
+        "name": "ForEach_File",
+        "type": "ForEach",
+        "dependsOn": [{ "activity": "GetMetadata_LandingFiles", "dependencyConditions": ["Succeeded"] }],
+        "typeProperties": {
+          "items": { "value": "@activity('GetMetadata_LandingFiles').output.childItems", "type": "Expression" },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "name": "Copy_Parquet_To_Bronze",
+              "type": "Copy",
+              "typeProperties": {
+                "source": {
+                  "type": "ParquetSource",
+                  "storeSettings": {
+                    "type": "AzureBlobFSReadSettings",
+                    "recursive": false
+                  }
+                },
+                "sink": {
+                  "type": "ParquetSink",
+                  "storeSettings": {
+                    "type": "AzureBlobFSWriteSettings",
+                    "copyBehavior": "MergeFiles"
+                  }
+                },
+                "enableStaging": false,
+                "parallelCopies": 8,
+                "dataIntegrationUnits": 16
+              },
+              "inputs": [{
+                "referenceName": "ds_adls_landing_parquet",
+                "type": "DatasetReference",
+                "parameters": { "fileName": { "value": "@item().name", "type": "Expression" } }
+              }],
+              "outputs": [{
+                "referenceName": "ds_adls_bronze_parquet",
+                "type": "DatasetReference",
+                "parameters": {
+                  "partitionYear":  { "value": "@formatDateTime(utcNow(), 'yyyy')",  "type": "Expression" },
+                  "partitionMonth": { "value": "@formatDateTime(utcNow(), 'MM')",    "type": "Expression" },
+                  "partitionDay":   { "value": "@formatDateTime(utcNow(), 'dd')",    "type": "Expression" }
+                }
+              }]
+            },
+            {
+              "name": "Log_Copy_Result",
+              "type": "SqlServerStoredProcedure",
+              "dependsOn": [{ "activity": "Copy_Parquet_To_Bronze", "dependencyConditions": ["Succeeded"] }],
+              "typeProperties": {
+                "storedProcedureName": "[dbo].[usp_log_pipeline_run]",
+                "storedProcedureParameters": {
+                  "pipeline_name":    { "value": "pl_finstream360_ingest_transactions", "type": "String" },
+                  "file_name":        { "value": "@item().name", "type": "String" },
+                  "rows_copied":      { "value": "@activity('Copy_Parquet_To_Bronze').output.rowsCopied", "type": "Int64" },
+                  "status":           { "value": "SUCCESS", "type": "String" },
+                  "run_start_ts":     { "value": "@pipeline().TriggerTime", "type": "DateTime" }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Trigger_Bronze_Notebook",
+        "type": "DatabricksNotebook",
+        "dependsOn": [{ "activity": "ForEach_File", "dependencyConditions": ["Succeeded"] }],
+        "policy": { "timeout": "01:00:00", "retry": 1 },
+        "typeProperties": {
+          "notebookPath": "/finstream360/notebooks/01_bronze_ingestion",
+          "baseParameters": {
+            "run_date": { "value": "@formatDateTime(utcNow(), 'yyyy-MM-dd')", "type": "Expression" }
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Trigger_Silver_Notebook",
+        "type": "DatabricksNotebook",
+        "dependsOn": [{ "activity": "Trigger_Bronze_Notebook", "dependencyConditions": ["Succeeded"] }],
+        "typeProperties": {
+          "notebookPath": "/finstream360/notebooks/02_silver_transformation",
+          "baseParameters": {
+            "run_date": { "value": "@formatDateTime(utcNow(), 'yyyy-MM-dd')", "type": "Expression" }
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Trigger_Gold_Notebook",
+        "type": "DatabricksNotebook",
+        "dependsOn": [{ "activity": "Trigger_Silver_Notebook", "dependencyConditions": ["Succeeded"] }],
+        "typeProperties": {
+          "notebookPath": "/finstream360/notebooks/03_gold_aggregations",
+          "baseParameters": {
+            "run_date": { "value": "@formatDateTime(utcNow(), 'yyyy-MM-dd')", "type": "Expression" }
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Copy_Gold_To_Snowflake",
+        "type": "Copy",
+        "dependsOn": [{ "activity": "Trigger_Gold_Notebook", "dependencyConditions": ["Succeeded"] }],
+        "typeProperties": {
+          "source": {
+            "type": "ParquetSource",
+            "storeSettings": { "type": "AzureBlobFSReadSettings", "recursive": true }
+          },
+          "sink": {
+            "type": "SnowflakeSink",
+            "importSettings": {
+              "type": "SnowflakeImportCopyCommand",
+              "additionalCopyOptions": { "ON_ERROR": "CONTINUE" },
+              "additionalFormatOptions": { "COMPRESSION": "\"SNAPPY\"" }
+            }
+          },
+          "enableStaging": true,
+          "stagingSettings": {
+            "linkedServiceName": { "referenceName": "ls_adls_staging", "type": "LinkedServiceReference" },
+            "path": "staging/snowflake-copy"
+          }
+        },
+        "inputs": [{ "referenceName": "ds_adls_gold_parquet", "type": "DatasetReference" }],
+        "outputs": [{ "referenceName": "ds_snowflake_daily_summary", "type": "DatasetReference" }]
+      }
+    ],
+    "parameters": {
+      "runDate": { "type": "String", "defaultValue": "@formatDateTime(utcNow(),'yyyy-MM-dd')" }
+    },
+    "annotations": ["finstream360", "transactions", "bronze", "silver", "gold", "snowflake"],
+    "concurrency": 1
+  }
+}

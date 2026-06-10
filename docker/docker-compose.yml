@@ -1,0 +1,141 @@
+################################################################################
+# FinStream360 — Local Development Stack
+# docker compose up -d  →  starts Kafka, Zookeeper, Schema Registry,
+#                           Kafka UI, and a local PySpark instance
+################################################################################
+version: "3.9"
+
+services:
+  # ── Zookeeper ─────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: finstream360-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME:   2000
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [finstream360-net]
+
+  # ── Kafka Broker ──────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: finstream360-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9101:9101"    # JMX
+    environment:
+      KAFKA_BROKER_ID:                      1
+      KAFKA_ZOOKEEPER_CONNECT:              zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS:           PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME:     PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE:      "true"
+      KAFKA_LOG_RETENTION_HOURS:            24
+      KAFKA_NUM_PARTITIONS:                 4
+      KAFKA_LOG4J_ROOT_LOGLEVEL:            WARN
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks: [finstream360-net]
+
+  # ── Schema Registry ────────────────────────────────────────────────────────
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    container_name: finstream360-schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME:           schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS:           http://0.0.0.0:8081
+    networks: [finstream360-net]
+
+  # ── Kafka UI (browse topics & messages in browser) ─────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: finstream360-kafka-ui
+    depends_on: [kafka, schema-registry]
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME:                     local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS:         kafka:29092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY:           http://schema-registry:8081
+      KAFKA_CLUSTERS_0_METRICS_PORT:             9101
+    networks: [finstream360-net]
+
+  # ── MinIO (local S3 / ADLS substitute) ────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: finstream360-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER:     finstream360
+      MINIO_ROOT_PASSWORD: finstream360secret
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [finstream360-net]
+
+  # ── MinIO bucket initialiser ───────────────────────────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    container_name: finstream360-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 finstream360 finstream360secret;
+        mc mb --ignore-existing local/datalake;
+        mc mb --ignore-existing local/datalake/landing;
+        mc mb --ignore-existing local/datalake/bronze;
+        mc mb --ignore-existing local/datalake/silver;
+        mc mb --ignore-existing local/datalake/gold;
+        mc mb --ignore-existing local/datalake/checkpoints;
+        echo 'Buckets ready.';
+      "
+    networks: [finstream360-net]
+
+  # ── PySpark (Jupyter) — run notebooks locally ──────────────────────────────
+  spark:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: finstream360-spark
+    ports:
+      - "8888:8888"
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      SPARK_OPTS:         "--master local[*]"
+    volumes:
+      - ../notebooks:/home/jovyan/notebooks
+      - ../transformations:/home/jovyan/transformations
+      - spark_warehouse:/home/jovyan/spark-warehouse
+    networks: [finstream360-net]
+
+volumes:
+  minio_data:
+  spark_warehouse:
+
+networks:
+  finstream360-net:
+    driver: bridge
