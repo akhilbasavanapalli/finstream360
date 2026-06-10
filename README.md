@@ -1,6 +1,6 @@
 # FinStream360 🏦⚡
 
-### Real-Time Credit Card Transaction Analytics & Fraud Detection Platform
+### Real-Time Credit Card Transaction Analytics, Fraud Detection & GenAI Intelligence Platform
 
 [![CI](https://github.com/akhilbasavanapalli/finstream360/actions/workflows/ci.yml/badge.svg)](https://github.com/akhilbasavanapalli/finstream360/actions/workflows/ci.yml)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
@@ -10,6 +10,8 @@
 [![Terraform](https://img.shields.io/badge/Terraform-1.7-7B42BC.svg)](https://terraform.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-✓-FF3621.svg)](https://databricks.com/)
 [![Azure](https://img.shields.io/badge/Azure-✓-0089D6.svg)](https://azure.microsoft.com/)
+[![Azure OpenAI](https://img.shields.io/badge/Azure_OpenAI-GPT--4o-412991.svg)](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
+[![LangChain](https://img.shields.io/badge/LangChain-0.2-1C3C3C.svg)](https://langchain.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -71,6 +73,7 @@ The platform is modelled on real-world financial services workloads — the same
 | **Streaming** | Apache Kafka, Azure Event Hub (Kafka-compatible endpoint) |
 | **Languages** | Python 3.11, PySpark, SQL, T-SQL, Scala (snippets) |
 | **ML / AI** | PySpark MLlib (GBTClassifier), MLflow, scikit-learn |
+| **GenAI** | Azure OpenAI GPT-4o, text-embedding-ada-002, LangChain, Chroma Vector DB, RAG |
 | **IaC** | Terraform 1.7 (Azure provider), PowerShell, Azure CLI |
 | **Orchestration** | Azure Data Factory, Snowflake Tasks, Databricks Workflows |
 | **Visualization** | Power BI (DirectQuery to Snowflake Gold), DAX measures |
@@ -137,6 +140,34 @@ finstream360/
 | Bronze | Raw landing, metadata, partitioned by date | 50M+/day | Append-only |
 | Silver | Cleansed, deduplicated, enriched, DQ-flagged | ~49M/day (2% DQ fail) | MERGE/upsert |
 | Gold | Business aggregates, KPI tables, ML scores | 5 tables, <100K rows each | Overwrite daily |
+
+### GenAI Intelligence Layer (Azure OpenAI GPT-4o)
+
+The platform includes a full **Generative AI layer** built on Azure OpenAI that transforms raw analytics into actionable intelligence:
+
+| Capability | Description | Notebook |
+|-----------|-------------|----------|
+| **Executive Fraud Briefing** | GPT-4o reads Gold Delta tables and writes a daily plain-English risk report for leadership | `05_genai_fraud_insights.py` |
+| **Anomaly Narration** | LLM explains *why* each fraud cluster is suspicious — merchant pattern, geography, timing | `05_genai_fraud_insights.py` |
+| **Semantic Search** | text-embedding-ada-002 embeds all fraud alerts into Chroma vector DB; analysts query in natural language ("late-night cross-state travel fraud in TX") | `05_genai_fraud_insights.py` |
+| **RAG Q&A** | Retrieval-Augmented Generation lets analysts ask free-text questions grounded in actual Gold data | `05_genai_fraud_insights.py` |
+| **AI DQ Assistant** | LangChain Agent with tool-calling monitors pipeline health and explains failures in plain English to non-technical stakeholders | `06_ai_data_quality_assistant.py` |
+| **Stakeholder Reports** | GPT-4o auto-generates Slack-ready DQ status updates from raw metrics | `06_ai_data_quality_assistant.py` |
+
+```
+Gold Delta Tables ──► Context Builder (PySpark)
+                              │
+                    ┌─────────▼──────────┐
+                    │  Azure OpenAI      │
+                    │  GPT-4o            │──► Executive Fraud Report
+                    │  (LangChain)       │──► Anomaly Narrations
+                    └─────────┬──────────┘──► RAG Analyst Q&A
+                              │
+                    ┌─────────▼──────────┐
+                    │ text-embedding     │
+                    │ ada-002            │──► Chroma Vector DB ──► Semantic Search
+                    └────────────────────┘
+```
 
 ### Fraud Detection ML Model
 - Algorithm: **Gradient Boosted Trees (GBTClassifier)** via PySpark MLlib
