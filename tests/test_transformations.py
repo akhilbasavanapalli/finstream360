@@ -164,7 +164,6 @@ class TestCleansing:
 
     def test_timestamp_parsed(self, clean_txn_df):
         result = cleanse_transactions(clean_txn_df)
-        from pyspark.sql.types import TimestampType
         assert dict(result.dtypes)["transaction_ts"] == "timestamp"
 
     def test_total_row_count_preserved(self, dirty_txn_df):
