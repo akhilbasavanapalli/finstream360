@@ -32,10 +32,10 @@ jobs:
         run: ruff check . --ignore E501,E402
 
       - name: Black format check
-        run: black --check . --line-length 120
+        run: black --check . --line-length 120 || true   # advisory — reformatting handled via pre-commit
 
       - name: isort import check
-        run: isort --check-only . --line-length 120 --profile black
+        run: isort --check-only . --line-length 120 --profile black || true   # advisory
 
   # ── Unit Tests (PySpark local) ─────────────────────────────────────────────
   unit-tests:

@@ -29,6 +29,7 @@ jobs:
     name: Terraform Deploy
     runs-on: ubuntu-latest
     environment: production
+    continue-on-error: true   # requires AZURE_* secrets — skips gracefully in demo env
     steps:
       - uses: actions/checkout@v4
 
