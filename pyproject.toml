@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | dist
+  | build
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = ["*.egg-info/*", ".git/*", "venv/*", ".venv/*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["E501", "E402", "F401", "W291"]
+select = ["E", "F", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
