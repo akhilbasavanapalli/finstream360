@@ -12,10 +12,7 @@ import pytest
 from datetime import datetime, timedelta
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import (
-    StructType, StructField, StringType, DoubleType,
-    BooleanType, TimestampType, LongType
-)
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, BooleanType, TimestampType, LongType
 import sys
 import os
 
@@ -30,29 +27,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def spark():
     """Local SparkSession for testing."""
     return (
-        SparkSession.builder
-            .master("local[2]")
-            .appName("finstream360-tests")
-            .config("spark.sql.shuffle.partitions", "4")
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config("spark.sql.catalog.spark_catalog",
-                    "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            .getOrCreate()
+        SparkSession.builder.master("local[2]")
+        .appName("finstream360-tests")
+        .config("spark.sql.shuffle.partitions", "4")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .getOrCreate()
     )
 
 
-TXN_SCHEMA = StructType([
-    StructField("transaction_id",    StringType(),  True),
-    StructField("customer_id",       StringType(),  True),
-    StructField("card_type",         StringType(),  True),
-    StructField("merchant_category", StringType(),  True),
-    StructField("merchant_state",    StringType(),  True),
-    StructField("amount_usd",        DoubleType(),  True),
-    StructField("transaction_ts",    StringType(),  True),
-    StructField("is_fraud",          BooleanType(), True),
-    StructField("card_present",      BooleanType(), True),
-    StructField("kafka_offset",      LongType(),    True),
-])
+TXN_SCHEMA = StructType(
+    [
+        StructField("transaction_id", StringType(), True),
+        StructField("customer_id", StringType(), True),
+        StructField("card_type", StringType(), True),
+        StructField("merchant_category", StringType(), True),
+        StructField("merchant_state", StringType(), True),
+        StructField("amount_usd", DoubleType(), True),
+        StructField("transaction_ts", StringType(), True),
+        StructField("is_fraud", BooleanType(), True),
+        StructField("card_present", BooleanType(), True),
+        StructField("kafka_offset", LongType(), True),
+    ]
+)
 
 
 def make_txn_df(spark, rows):
@@ -61,31 +58,73 @@ def make_txn_df(spark, rows):
 
 @pytest.fixture
 def clean_txn_df(spark):
-    return make_txn_df(spark, [
-        ("txn-001", "cust-1", "VISA",       "GROCERY_STORE", "TX", 45.50,  "2024-03-15T10:30:00Z", False, True,  1),
-        ("txn-002", "cust-2", "MASTERCARD", "RESTAURANT",    "CA", 89.99,  "2024-03-15T12:00:00Z", False, True,  2),
-        ("txn-003", "cust-3", "AMEX",       "TRAVEL",        "NY", 1250.0, "2024-03-15T23:45:00Z", True,  False, 3),
-    ])
+    return make_txn_df(
+        spark,
+        [
+            ("txn-001", "cust-1", "VISA", "GROCERY_STORE", "TX", 45.50, "2024-03-15T10:30:00Z", False, True, 1),
+            ("txn-002", "cust-2", "MASTERCARD", "RESTAURANT", "CA", 89.99, "2024-03-15T12:00:00Z", False, True, 2),
+            ("txn-003", "cust-3", "AMEX", "TRAVEL", "NY", 1250.0, "2024-03-15T23:45:00Z", True, False, 3),
+        ],
+    )
 
 
 @pytest.fixture
 def dirty_txn_df(spark):
-    return make_txn_df(spark, [
-        (None,      "cust-1", "VISA",       "GROCERY_STORE", "TX", 45.50,  "2024-03-15T10:30:00Z", False, True,  1),  # null txn_id
-        ("txn-002", None,     "MASTERCARD", "RESTAURANT",    "CA", 89.99,  "2024-03-15T12:00:00Z", False, True,  2),  # null cust_id
-        ("txn-003", "cust-3", "AMEX",       "TRAVEL",        "NY", -99.0,  "2024-03-15T23:45:00Z", True,  False, 3),  # negative amount
-        ("txn-004", "cust-4", "DISCOVER",   "GAS_STATION",   "FL", 55.0,   None,                   False, True,  4),  # null ts
-    ])
+    return make_txn_df(
+        spark,
+        [
+            (
+                None,
+                "cust-1",
+                "VISA",
+                "GROCERY_STORE",
+                "TX",
+                45.50,
+                "2024-03-15T10:30:00Z",
+                False,
+                True,
+                1,
+            ),  # null txn_id
+            (
+                "txn-002",
+                None,
+                "MASTERCARD",
+                "RESTAURANT",
+                "CA",
+                89.99,
+                "2024-03-15T12:00:00Z",
+                False,
+                True,
+                2,
+            ),  # null cust_id
+            (
+                "txn-003",
+                "cust-3",
+                "AMEX",
+                "TRAVEL",
+                "NY",
+                -99.0,
+                "2024-03-15T23:45:00Z",
+                True,
+                False,
+                3,
+            ),  # negative amount
+            ("txn-004", "cust-4", "DISCOVER", "GAS_STATION", "FL", 55.0, None, False, True, 4),  # null ts
+        ],
+    )
 
 
 @pytest.fixture
 def dup_txn_df(spark):
     """Same transaction_id appears twice with different kafka_offsets."""
-    return make_txn_df(spark, [
-        ("txn-001", "cust-1", "VISA", "GROCERY_STORE", "TX", 45.50, "2024-03-15T10:30:00Z", False, True, 1),
-        ("txn-001", "cust-1", "VISA", "GROCERY_STORE", "TX", 45.50, "2024-03-15T10:30:00Z", False, True, 5),  # dup
-        ("txn-002", "cust-2", "MC",   "RESTAURANT",    "CA", 89.99, "2024-03-15T12:00:00Z", False, True, 2),
-    ])
+    return make_txn_df(
+        spark,
+        [
+            ("txn-001", "cust-1", "VISA", "GROCERY_STORE", "TX", 45.50, "2024-03-15T10:30:00Z", False, True, 1),
+            ("txn-001", "cust-1", "VISA", "GROCERY_STORE", "TX", 45.50, "2024-03-15T10:30:00Z", False, True, 5),  # dup
+            ("txn-002", "cust-2", "MC", "RESTAURANT", "CA", 89.99, "2024-03-15T12:00:00Z", False, True, 2),
+        ],
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,21 +133,21 @@ def dup_txn_df(spark):
 def cleanse_transactions(df):
     """Copied inline so tests don't depend on Databricks dbutils."""
     return (
-        df
-        .withColumn("transaction_ts",   F.to_timestamp("transaction_ts"))
+        df.withColumn("transaction_ts", F.to_timestamp("transaction_ts"))
         .withColumn("merchant_category", F.upper(F.trim("merchant_category")))
-        .withColumn("merchant_state",    F.upper(F.trim("merchant_state")))
-        .withColumn("card_type",         F.upper(F.trim("card_type")))
-        .withColumn("amount_usd_clean",
-                    F.when(F.col("amount_usd") <= 0, None).otherwise(F.col("amount_usd")))
-        .withColumn("dq_passed",
-                    F.when(
-                        F.col("transaction_id").isNull()
-                        | F.col("customer_id").isNull()
-                        | F.col("amount_usd_clean").isNull()
-                        | F.col("transaction_ts").isNull(),
-                        False
-                    ).otherwise(True))
+        .withColumn("merchant_state", F.upper(F.trim("merchant_state")))
+        .withColumn("card_type", F.upper(F.trim("card_type")))
+        .withColumn("amount_usd_clean", F.when(F.col("amount_usd") <= 0, None).otherwise(F.col("amount_usd")))
+        .withColumn(
+            "dq_passed",
+            F.when(
+                F.col("transaction_id").isNull()
+                | F.col("customer_id").isNull()
+                | F.col("amount_usd_clean").isNull()
+                | F.col("transaction_ts").isNull(),
+                False,
+            ).otherwise(True),
+        )
         .drop("amount_usd")
         .withColumnRenamed("amount_usd_clean", "amount_usd")
     )
@@ -116,19 +155,19 @@ def cleanse_transactions(df):
 
 def deduplicate_transactions(df):
     from pyspark.sql.window import Window
+
     w = Window.partitionBy("transaction_id").orderBy(F.desc("kafka_offset"))
     return df.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")
 
 
 def add_derived_features(df):
     return (
-        df
-        .withColumn("txn_hour",        F.hour("transaction_ts"))
+        df.withColumn("txn_hour", F.hour("transaction_ts"))
         .withColumn("txn_day_of_week", F.dayofweek("transaction_ts"))
-        .withColumn("is_weekend",      F.col("txn_day_of_week").isin(1, 7))
-        .withColumn("is_late_night",   F.col("txn_hour").between(0, 5))
-        .withColumn("txn_year",        F.year("transaction_ts"))
-        .withColumn("txn_month",       F.month("transaction_ts"))
+        .withColumn("is_weekend", F.col("txn_day_of_week").isin(1, 7))
+        .withColumn("is_late_night", F.col("txn_hour").between(0, 5))
+        .withColumn("txn_year", F.year("transaction_ts"))
+        .withColumn("txn_month", F.month("transaction_ts"))
     )
 
 
@@ -180,11 +219,11 @@ class TestDeduplication:
     def test_dedup_keeps_highest_offset(self, dup_txn_df):
         result = deduplicate_transactions(dup_txn_df)
         txn001 = result.filter("transaction_id = 'txn-001'").collect()[0]
-        assert txn001["kafka_offset"] == 5   # highest offset kept
+        assert txn001["kafka_offset"] == 5  # highest offset kept
 
     def test_dedup_idempotent(self, clean_txn_df):
         """Running dedup twice should yield same result."""
-        once  = deduplicate_transactions(clean_txn_df).count()
+        once = deduplicate_transactions(clean_txn_df).count()
         twice = deduplicate_transactions(deduplicate_transactions(clean_txn_df)).count()
         assert once == twice
 
@@ -207,7 +246,7 @@ class TestDerivedFeatures:
         cleansed = cleanse_transactions(clean_txn_df)
         enriched = add_derived_features(cleansed)
         row = enriched.filter("transaction_id = 'txn-001'").collect()[0]
-        assert row["txn_year"]  == 2024
+        assert row["txn_year"] == 2024
         assert row["txn_month"] == 3
 
 

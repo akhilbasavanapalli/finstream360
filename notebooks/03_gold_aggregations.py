@@ -23,11 +23,11 @@ from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
 STORAGE_ACCOUNT = "finstream360adls"
-CONTAINER       = "datalake"
-BASE_PATH       = f"abfss://{CONTAINER}@{STORAGE_ACCOUNT}.dfs.core.windows.net"
-GOLD_PATH       = f"{BASE_PATH}/gold"
+CONTAINER = "datalake"
+BASE_PATH = f"abfss://{CONTAINER}@{STORAGE_ACCOUNT}.dfs.core.windows.net"
+GOLD_PATH = f"{BASE_PATH}/gold"
 
-silver_txn  = spark.table("finstream360_silver.transactions_enriched")
+silver_txn = spark.table("finstream360_silver.transactions_enriched")
 silver_cust = spark.table("finstream360_silver.customers")
 
 # COMMAND ----------
@@ -37,8 +37,7 @@ silver_cust = spark.table("finstream360_silver.customers")
 # COMMAND ----------
 
 daily_txn_summary = (
-    silver_txn
-    .filter("dq_passed = true")
+    silver_txn.filter("dq_passed = true")
     .groupBy("txn_year", "txn_month", "txn_day", "merchant_category", "card_type")
     .agg(
         F.count("*").alias("total_transactions"),
@@ -48,25 +47,20 @@ daily_txn_summary = (
         F.min("amount_usd").alias("min_amount_usd"),
         F.countDistinct("customer_id").alias("unique_customers"),
         F.sum(F.col("is_fraud").cast("int")).alias("fraud_count"),
-        F.sum(
-            F.when(F.col("is_fraud"), F.col("amount_usd")).otherwise(0)
-        ).alias("fraud_amount_usd"),
+        F.sum(F.when(F.col("is_fraud"), F.col("amount_usd")).otherwise(0)).alias("fraud_amount_usd"),
         F.sum(F.col("is_weekend").cast("int")).alias("weekend_txn_count"),
         F.sum(F.col("is_late_night").cast("int")).alias("late_night_txn_count"),
     )
-    .withColumn("fraud_rate_pct",
-                F.round(F.col("fraud_count") / F.col("total_transactions") * 100, 2))
+    .withColumn("fraud_rate_pct", F.round(F.col("fraud_count") / F.col("total_transactions") * 100, 2))
     .withColumn("gold_created_at", F.current_timestamp())
-    .withColumn("txn_date",
-                F.to_date(F.concat_ws("-", "txn_year", "txn_month", "txn_day")))
+    .withColumn("txn_date", F.to_date(F.concat_ws("-", "txn_year", "txn_month", "txn_day")))
 )
 
 (
-    daily_txn_summary.write
-                     .format("delta")
-                     .mode("overwrite")
-                     .partitionBy("txn_year", "txn_month")
-                     .save(f"{GOLD_PATH}/daily_txn_summary")
+    daily_txn_summary.write.format("delta")
+    .mode("overwrite")
+    .partitionBy("txn_year", "txn_month")
+    .save(f"{GOLD_PATH}/daily_txn_summary")
 )
 print(f"daily_txn_summary: {daily_txn_summary.count():,} rows")
 
@@ -77,8 +71,7 @@ print(f"daily_txn_summary: {daily_txn_summary.count():,} rows")
 # COMMAND ----------
 
 customer_txn_stats = (
-    silver_txn
-    .filter("dq_passed = true")
+    silver_txn.filter("dq_passed = true")
     .groupBy("customer_id")
     .agg(
         F.count("*").alias("total_transactions"),
@@ -92,30 +85,24 @@ customer_txn_stats = (
         F.sum(F.col("is_cross_state").cast("int")).alias("cross_state_txn_count"),
         F.avg("amount_to_limit_ratio").alias("avg_amount_to_limit_ratio"),
     )
-    .withColumn("days_active",
-                F.datediff(F.col("last_txn_ts"), F.col("first_txn_ts")))
-    .withColumn("avg_daily_spend",
-                F.when(F.col("days_active") > 0,
-                       F.col("lifetime_spend_usd") / F.col("days_active")
-                ).otherwise(F.col("lifetime_spend_usd")))
-    .withColumn("risk_tier",
-                F.when(F.col("fraud_flag_count") >= 3, "HIGH")
-                 .when(F.col("fraud_flag_count") >= 1, "MEDIUM")
-                 .otherwise("LOW"))
+    .withColumn("days_active", F.datediff(F.col("last_txn_ts"), F.col("first_txn_ts")))
+    .withColumn(
+        "avg_daily_spend",
+        F.when(F.col("days_active") > 0, F.col("lifetime_spend_usd") / F.col("days_active")).otherwise(
+            F.col("lifetime_spend_usd")
+        ),
+    )
+    .withColumn(
+        "risk_tier",
+        F.when(F.col("fraud_flag_count") >= 3, "HIGH").when(F.col("fraud_flag_count") >= 1, "MEDIUM").otherwise("LOW"),
+    )
 )
 
-customer_360 = (
-    silver_cust
-    .join(customer_txn_stats, on="customer_id", how="left")
-    .withColumn("gold_created_at", F.current_timestamp())
+customer_360 = silver_cust.join(customer_txn_stats, on="customer_id", how="left").withColumn(
+    "gold_created_at", F.current_timestamp()
 )
 
-(
-    customer_360.write
-                .format("delta")
-                .mode("overwrite")
-                .save(f"{GOLD_PATH}/customer_360")
-)
+(customer_360.write.format("delta").mode("overwrite").save(f"{GOLD_PATH}/customer_360"))
 print(f"customer_360: {customer_360.count():,} rows")
 
 # COMMAND ----------
@@ -125,8 +112,7 @@ print(f"customer_360: {customer_360.count():,} rows")
 # COMMAND ----------
 
 fraud_alerts_hourly = (
-    silver_txn
-    .filter("is_fraud = true")
+    silver_txn.filter("is_fraud = true")
     .groupBy("txn_year", "txn_month", "txn_day", "txn_hour", "merchant_category", "merchant_state")
     .agg(
         F.count("*").alias("fraud_count"),
@@ -134,27 +120,31 @@ fraud_alerts_hourly = (
         F.countDistinct("customer_id").alias("affected_customers"),
         F.avg("amount_usd").alias("avg_fraud_amount"),
     )
-    .withColumn("alert_ts",
-                F.to_timestamp(
-                    F.concat_ws(" ",
-                        F.concat_ws("-", "txn_year", "txn_month", "txn_day"),
-                        F.concat(F.col("txn_hour").cast("string"), F.lit(":00:00"))
-                    )
-                ))
-    .withColumn("severity",
-                F.when(F.col("fraud_count") >= 50, "CRITICAL")
-                 .when(F.col("fraud_count") >= 20, "HIGH")
-                 .when(F.col("fraud_count") >= 5,  "MEDIUM")
-                 .otherwise("LOW"))
+    .withColumn(
+        "alert_ts",
+        F.to_timestamp(
+            F.concat_ws(
+                " ",
+                F.concat_ws("-", "txn_year", "txn_month", "txn_day"),
+                F.concat(F.col("txn_hour").cast("string"), F.lit(":00:00")),
+            )
+        ),
+    )
+    .withColumn(
+        "severity",
+        F.when(F.col("fraud_count") >= 50, "CRITICAL")
+        .when(F.col("fraud_count") >= 20, "HIGH")
+        .when(F.col("fraud_count") >= 5, "MEDIUM")
+        .otherwise("LOW"),
+    )
     .withColumn("gold_created_at", F.current_timestamp())
 )
 
 (
-    fraud_alerts_hourly.write
-                       .format("delta")
-                       .mode("overwrite")
-                       .partitionBy("txn_year", "txn_month")
-                       .save(f"{GOLD_PATH}/fraud_alerts_hourly")
+    fraud_alerts_hourly.write.format("delta")
+    .mode("overwrite")
+    .partitionBy("txn_year", "txn_month")
+    .save(f"{GOLD_PATH}/fraud_alerts_hourly")
 )
 print(f"fraud_alerts_hourly: {fraud_alerts_hourly.count():,} rows")
 
@@ -165,8 +155,7 @@ print(f"fraud_alerts_hourly: {fraud_alerts_hourly.count():,} rows")
 # COMMAND ----------
 
 state_performance = (
-    silver_txn
-    .filter("dq_passed = true")
+    silver_txn.filter("dq_passed = true")
     .groupBy("txn_year", "txn_month", "merchant_state")
     .agg(
         F.count("*").alias("total_transactions"),
@@ -175,20 +164,18 @@ state_performance = (
         F.countDistinct("customer_id").alias("unique_customers"),
         F.sum(F.col("is_fraud").cast("int")).alias("fraud_count"),
     )
-    .withColumn("fraud_rate_pct",
-                F.round(F.col("fraud_count") / F.col("total_transactions") * 100, 2))
-    .withColumn("txn_month_label",
-                F.concat(F.col("txn_year"), F.lit("-"),
-                         F.lpad(F.col("txn_month").cast("string"), 2, "0")))
+    .withColumn("fraud_rate_pct", F.round(F.col("fraud_count") / F.col("total_transactions") * 100, 2))
+    .withColumn(
+        "txn_month_label", F.concat(F.col("txn_year"), F.lit("-"), F.lpad(F.col("txn_month").cast("string"), 2, "0"))
+    )
     .withColumn("gold_created_at", F.current_timestamp())
 )
 
 (
-    state_performance.write
-                     .format("delta")
-                     .mode("overwrite")
-                     .partitionBy("txn_year", "txn_month")
-                     .save(f"{GOLD_PATH}/state_performance")
+    state_performance.write.format("delta")
+    .mode("overwrite")
+    .partitionBy("txn_year", "txn_month")
+    .save(f"{GOLD_PATH}/state_performance")
 )
 print(f"state_performance: {state_performance.count():,} rows")
 
@@ -201,17 +188,19 @@ print(f"state_performance: {state_performance.count():,} rows")
 spark.sql("CREATE DATABASE IF NOT EXISTS finstream360_gold")
 
 gold_tables = {
-    "daily_txn_summary":   f"{GOLD_PATH}/daily_txn_summary",
-    "customer_360":        f"{GOLD_PATH}/customer_360",
+    "daily_txn_summary": f"{GOLD_PATH}/daily_txn_summary",
+    "customer_360": f"{GOLD_PATH}/customer_360",
     "fraud_alerts_hourly": f"{GOLD_PATH}/fraud_alerts_hourly",
-    "state_performance":   f"{GOLD_PATH}/state_performance",
+    "state_performance": f"{GOLD_PATH}/state_performance",
 }
 
 for table_name, path in gold_tables.items():
-    spark.sql(f"""
+    spark.sql(
+        f"""
         CREATE TABLE IF NOT EXISTS finstream360_gold.{table_name}
         USING DELTA LOCATION '{path}'
-    """)
+    """
+    )
     print(f"Registered: finstream360_gold.{table_name}")
 
 # COMMAND ----------
@@ -220,7 +209,8 @@ for table_name, path in gold_tables.items():
 
 # COMMAND ----------
 
-spark.sql("""
+spark.sql(
+    """
     SELECT
         txn_year,
         txn_month,
@@ -233,4 +223,5 @@ spark.sql("""
     FROM finstream360_gold.daily_txn_summary
     GROUP BY txn_year, txn_month
     ORDER BY txn_year, txn_month
-""").show(truncate=False)
+"""
+).show(truncate=False)

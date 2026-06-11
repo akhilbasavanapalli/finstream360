@@ -13,8 +13,13 @@ Tech   : Snowpark API, Python, Pandas on Snowpark
 from snowflake.snowpark import Session
 from snowflake.snowpark import functions as F
 from snowflake.snowpark.types import (
-    StructType, StructField,
-    StringType, DoubleType, BooleanType, TimestampType, IntegerType
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+    BooleanType,
+    TimestampType,
+    IntegerType,
 )
 import pandas as pd
 import logging
@@ -26,13 +31,13 @@ log = logging.getLogger("snowpark_etl")
 
 # ── Connection params (pull from env / Secrets Manager in prod) ───────────────
 CONNECTION_PARAMS = {
-    "account":   os.environ.get("SNOWFLAKE_ACCOUNT",   "your_account"),
-    "user":      os.environ.get("SNOWFLAKE_USER",      "your_user"),
-    "password":  os.environ.get("SNOWFLAKE_PASSWORD",  "your_password"),
-    "role":      os.environ.get("SNOWFLAKE_ROLE",      "SYSADMIN"),
+    "account": os.environ.get("SNOWFLAKE_ACCOUNT", "your_account"),
+    "user": os.environ.get("SNOWFLAKE_USER", "your_user"),
+    "password": os.environ.get("SNOWFLAKE_PASSWORD", "your_password"),
+    "role": os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
     "warehouse": "FINSTREAM360_WH",
-    "database":  "FINSTREAM360",
-    "schema":    "STAGING",
+    "database": "FINSTREAM360",
+    "schema": "STAGING",
 }
 
 
@@ -52,16 +57,14 @@ def run_dq_checks(session: Session) -> dict:
     Returns a dict of {check_name: pass/fail}.
     """
     txn_df = session.table("STAGING.STG_TRANSACTIONS")
-    total  = txn_df.count()
+    total = txn_df.count()
 
     checks = {
-        "total_rows":          total,
+        "total_rows": total,
         "null_transaction_ids": txn_df.filter(F.col("TRANSACTION_ID").isNull()).count(),
-        "null_customer_ids":   txn_df.filter(F.col("CUSTOMER_ID").isNull()).count(),
-        "negative_amounts":    txn_df.filter(F.col("AMOUNT_USD") <= 0).count(),
-        "future_transactions": txn_df.filter(
-            F.col("TRANSACTION_TS") > F.current_timestamp()
-        ).count(),
+        "null_customer_ids": txn_df.filter(F.col("CUSTOMER_ID").isNull()).count(),
+        "negative_amounts": txn_df.filter(F.col("AMOUNT_USD") <= 0).count(),
+        "future_transactions": txn_df.filter(F.col("TRANSACTION_TS") > F.current_timestamp()).count(),
         "duplicates": total - txn_df.select("TRANSACTION_ID").distinct().count(),
     }
 
@@ -84,23 +87,20 @@ def wrangle_transactions(session: Session):
     txn_df = session.table("STAGING.STG_TRANSACTIONS")
 
     wrangled = (
-        txn_df
-        .withColumn("MERCHANT_CATEGORY",    F.upper(F.trim(F.col("MERCHANT_CATEGORY"))))
-        .withColumn("MERCHANT_STATE",       F.upper(F.trim(F.col("MERCHANT_STATE"))))
-        .withColumn("CARD_TYPE",            F.upper(F.trim(F.col("CARD_TYPE"))))
-        .withColumn("CURRENCY",             F.upper(F.trim(F.col("CURRENCY"))))
-        .withColumn("TXN_HOUR",             F.hour(F.col("TRANSACTION_TS")))
-        .withColumn("TXN_DAY_OF_WEEK",      F.dayofweek(F.col("TRANSACTION_TS")))
-        .withColumn("TXN_MONTH",            F.month(F.col("TRANSACTION_TS")))
-        .withColumn("TXN_YEAR",             F.year(F.col("TRANSACTION_TS")))
-        .withColumn("IS_WEEKEND",
-                    F.col("TXN_DAY_OF_WEEK").isin(1, 7))
-        .withColumn("IS_LATE_NIGHT",
-                    F.col("TXN_HOUR").between(0, 5))
-        .withColumn("DQ_PASSED",
-                    F.col("TRANSACTION_ID").isNotNull()
-                    & F.col("CUSTOMER_ID").isNotNull()
-                    & (F.col("AMOUNT_USD") > 0))
+        txn_df.withColumn("MERCHANT_CATEGORY", F.upper(F.trim(F.col("MERCHANT_CATEGORY"))))
+        .withColumn("MERCHANT_STATE", F.upper(F.trim(F.col("MERCHANT_STATE"))))
+        .withColumn("CARD_TYPE", F.upper(F.trim(F.col("CARD_TYPE"))))
+        .withColumn("CURRENCY", F.upper(F.trim(F.col("CURRENCY"))))
+        .withColumn("TXN_HOUR", F.hour(F.col("TRANSACTION_TS")))
+        .withColumn("TXN_DAY_OF_WEEK", F.dayofweek(F.col("TRANSACTION_TS")))
+        .withColumn("TXN_MONTH", F.month(F.col("TRANSACTION_TS")))
+        .withColumn("TXN_YEAR", F.year(F.col("TRANSACTION_TS")))
+        .withColumn("IS_WEEKEND", F.col("TXN_DAY_OF_WEEK").isin(1, 7))
+        .withColumn("IS_LATE_NIGHT", F.col("TXN_HOUR").between(0, 5))
+        .withColumn(
+            "DQ_PASSED",
+            F.col("TRANSACTION_ID").isNotNull() & F.col("CUSTOMER_ID").isNotNull() & (F.col("AMOUNT_USD") > 0),
+        )
     )
 
     row_count = wrangled.count()
@@ -125,17 +125,12 @@ def compute_customer_segments(session: Session) -> pd.DataFrame:
     spd = session.table("GOLD.CUSTOMER_360").to_pandas()  # pull to local Pandas
 
     # RFM scoring
-    spd["recency_score"]   = pd.qcut(spd["LAST_TXN_TS"].rank(ascending=False),
-                                     q=4, labels=[4, 3, 2, 1]).astype(int)
-    spd["frequency_score"] = pd.qcut(spd["TOTAL_TRANSACTIONS"].rank(),
-                                     q=4, labels=[1, 2, 3, 4]).astype(int)
-    spd["monetary_score"]  = pd.qcut(spd["LIFETIME_SPEND_USD"].rank(),
-                                     q=4, labels=[1, 2, 3, 4]).astype(int)
+    spd["recency_score"] = pd.qcut(spd["LAST_TXN_TS"].rank(ascending=False), q=4, labels=[4, 3, 2, 1]).astype(int)
+    spd["frequency_score"] = pd.qcut(spd["TOTAL_TRANSACTIONS"].rank(), q=4, labels=[1, 2, 3, 4]).astype(int)
+    spd["monetary_score"] = pd.qcut(spd["LIFETIME_SPEND_USD"].rank(), q=4, labels=[1, 2, 3, 4]).astype(int)
 
     spd["rfm_score"] = (
-        spd["recency_score"].astype(str)
-        + spd["frequency_score"].astype(str)
-        + spd["monetary_score"].astype(str)
+        spd["recency_score"].astype(str) + spd["frequency_score"].astype(str) + spd["monetary_score"].astype(str)
     )
 
     def rfm_segment(row):
@@ -155,14 +150,14 @@ def compute_customer_segments(session: Session) -> pd.DataFrame:
 
     segment_summary = (
         spd.groupby("customer_segment")
-           .agg(
-               customer_count     = ("CUSTOMER_ID", "count"),
-               avg_lifetime_spend = ("LIFETIME_SPEND_USD", "mean"),
-               avg_txn_count      = ("TOTAL_TRANSACTIONS", "mean"),
-               fraud_rate         = ("FRAUD_FLAG_COUNT", lambda x: (x > 0).mean()),
-           )
-           .reset_index()
-           .round(2)
+        .agg(
+            customer_count=("CUSTOMER_ID", "count"),
+            avg_lifetime_spend=("LIFETIME_SPEND_USD", "mean"),
+            avg_txn_count=("TOTAL_TRANSACTIONS", "mean"),
+            fraud_rate=("FRAUD_FLAG_COUNT", lambda x: (x > 0).mean()),
+        )
+        .reset_index()
+        .round(2)
     )
 
     log.info("Customer segment summary:\n%s", segment_summary.to_string())

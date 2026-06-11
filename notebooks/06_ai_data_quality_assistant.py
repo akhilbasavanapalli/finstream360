@@ -29,15 +29,15 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import SystemMessage
 
 # Azure OpenAI setup
-AZURE_OAI_ENDPOINT   = dbutils.secrets.get("finstream360", "azure_oai_endpoint")  # noqa
-AZURE_OAI_KEY        = dbutils.secrets.get("finstream360", "azure_oai_key")       # noqa
+AZURE_OAI_ENDPOINT = dbutils.secrets.get("finstream360", "azure_oai_endpoint")  # noqa
+AZURE_OAI_KEY = dbutils.secrets.get("finstream360", "azure_oai_key")  # noqa
 
 llm = AzureChatOpenAI(
-    azure_endpoint   = AZURE_OAI_ENDPOINT,
-    api_key          = AZURE_OAI_KEY,
-    azure_deployment = "gpt-4o",
-    api_version      = "2024-02-01",
-    temperature      = 0.1,
+    azure_endpoint=AZURE_OAI_ENDPOINT,
+    api_key=AZURE_OAI_KEY,
+    azure_deployment="gpt-4o",
+    api_version="2024-02-01",
+    temperature=0.1,
 )
 
 # COMMAND ----------
@@ -46,21 +46,22 @@ llm = AzureChatOpenAI(
 
 # COMMAND ----------
 
+
 def collect_dq_metrics() -> dict:
     """Collect DQ metrics across all three medallion layers."""
 
     bronze = spark.table("finstream360_bronze.transactions")
     silver = spark.table("finstream360_silver.transactions_enriched")
-    gold   = spark.table("finstream360_gold.daily_txn_summary")
+    gold = spark.table("finstream360_gold.daily_txn_summary")
 
     bronze_total = bronze.count()
     silver_total = silver.count()
-    dq_fail      = silver.filter("dq_passed = false").count()
+    dq_fail = silver.filter("dq_passed = false").count()
 
     # Freshness check — when was the last record loaded?
     bronze_latest = bronze.agg(F.max("bronze_ingested_at")).collect()[0][0]
     silver_latest = silver.agg(F.max("silver_processed_at")).collect()[0][0]
-    gold_latest   = gold.agg(F.max("gold_created_at")).collect()[0][0]
+    gold_latest = gold.agg(F.max("gold_created_at")).collect()[0][0]
 
     # Null rates in Silver
     null_rates = {}
@@ -78,8 +79,7 @@ def collect_dq_metrics() -> dict:
 
     # Category distribution
     category_dist = (
-        silver
-        .groupBy("merchant_category")
+        silver.groupBy("merchant_category")
         .count()
         .orderBy(F.desc("count"))
         .limit(5)
@@ -88,23 +88,23 @@ def collect_dq_metrics() -> dict:
     )
 
     return {
-        "timestamp":          datetime.utcnow().isoformat(),
-        "bronze_total_rows":  bronze_total,
-        "silver_total_rows":  silver_total,
-        "gold_total_rows":    gold.count(),
-        "dq_fail_count":      dq_fail,
-        "dq_fail_rate_pct":   round(dq_fail / silver_total * 100, 3) if silver_total > 0 else 0,
-        "duplicate_count":    dup_count,
-        "null_rates":         null_rates,
+        "timestamp": datetime.utcnow().isoformat(),
+        "bronze_total_rows": bronze_total,
+        "silver_total_rows": silver_total,
+        "gold_total_rows": gold.count(),
+        "dq_fail_count": dq_fail,
+        "dq_fail_rate_pct": round(dq_fail / silver_total * 100, 3) if silver_total > 0 else 0,
+        "duplicate_count": dup_count,
+        "null_rates": null_rates,
         "high_amount_anomalies": high_amount_count,
-        "p99_amount_usd":     round(p99_amount, 2),
+        "p99_amount_usd": round(p99_amount, 2),
         "bronze_last_loaded": str(bronze_latest),
         "silver_last_loaded": str(silver_latest),
-        "gold_last_loaded":   str(gold_latest),
-        "top_categories":     category_dist,
-        "bronze_to_silver_drop_pct": round(
-            (bronze_total - silver_total) / bronze_total * 100, 3
-        ) if bronze_total > 0 else 0,
+        "gold_last_loaded": str(gold_latest),
+        "top_categories": category_dist,
+        "bronze_to_silver_drop_pct": (
+            round((bronze_total - silver_total) / bronze_total * 100, 3) if bronze_total > 0 else 0
+        ),
     }
 
 
@@ -118,6 +118,7 @@ print(json.dumps(dq_metrics, indent=2, default=str))
 
 # COMMAND ----------
 
+
 @tool
 def get_pipeline_health() -> str:
     """Returns current DQ metrics for the FinStream360 pipeline."""
@@ -130,22 +131,27 @@ def get_null_analysis(column_name: str) -> str:
     Analyse null values for a specific column in the Silver transactions table.
     Returns null count, rate, and sample bad rows.
     """
-    df    = spark.table("finstream360_silver.transactions_enriched")
+    df = spark.table("finstream360_silver.transactions_enriched")
     total = df.count()
     nulls = df.filter(F.col(column_name).isNull())
     count = nulls.count()
 
-    sample = nulls.select(
-        "transaction_id", "customer_id", "merchant_category",
-        "transaction_ts", column_name
-    ).limit(3).toPandas().to_dict(orient="records")
+    sample = (
+        nulls.select("transaction_id", "customer_id", "merchant_category", "transaction_ts", column_name)
+        .limit(3)
+        .toPandas()
+        .to_dict(orient="records")
+    )
 
-    return json.dumps({
-        "column":      column_name,
-        "null_count":  count,
-        "null_rate":   f"{round(count/total*100, 3)}%",
-        "sample_rows": sample,
-    }, default=str)
+    return json.dumps(
+        {
+            "column": column_name,
+            "null_count": count,
+            "null_rate": f"{round(count/total*100, 3)}%",
+            "sample_rows": sample,
+        },
+        default=str,
+    )
 
 
 @tool
@@ -159,11 +165,9 @@ def get_freshness_status() -> str:
     for layer, table in [
         ("bronze", "finstream360_bronze.transactions"),
         ("silver", "finstream360_silver.transactions_enriched"),
-        ("gold",   "finstream360_gold.daily_txn_summary"),
+        ("gold", "finstream360_gold.daily_txn_summary"),
     ]:
-        ts_col = {"bronze": "bronze_ingested_at",
-                  "silver": "silver_processed_at",
-                  "gold":   "gold_created_at"}[layer]
+        ts_col = {"bronze": "bronze_ingested_at", "silver": "silver_processed_at", "gold": "gold_created_at"}[layer]
         try:
             latest = spark.table(table).agg(F.max(ts_col)).collect()[0][0]
             lag_minutes = round((now - latest).total_seconds() / 60, 1) if latest else None
@@ -182,10 +186,10 @@ def explain_dq_issue(issue_description: str) -> str:
     """
     root_cause_map = {
         "null transaction_id": "Likely cause: Kafka consumer deserialisation failure or upstream API sent malformed JSON. Check Bronze ingestion logs and Event Hub dead-letter queue.",
-        "negative amount":     "Likely cause: Refund/reversal records ingested without preprocessing. Add ADF data flow filter or Silver-layer CASE logic to handle negatives separately.",
-        "duplicate records":   "Likely cause: Kafka consumer committed offset before write succeeded (at-least-once delivery). The Silver MERGE with row_number() dedup should handle this — check checkpoint directory.",
-        "high null rate":      "Likely cause: Schema drift in upstream Kafka producer. Compare current transaction_schema with Bronze table schema using `spark.table().printSchema()`.",
-        "stale gold":          "Likely cause: ADF pipeline trigger missed a schedule or Databricks cluster auto-terminated. Check ADF monitoring and Databricks job run history.",
+        "negative amount": "Likely cause: Refund/reversal records ingested without preprocessing. Add ADF data flow filter or Silver-layer CASE logic to handle negatives separately.",
+        "duplicate records": "Likely cause: Kafka consumer committed offset before write succeeded (at-least-once delivery). The Silver MERGE with row_number() dedup should handle this — check checkpoint directory.",
+        "high null rate": "Likely cause: Schema drift in upstream Kafka producer. Compare current transaction_schema with Bronze table schema using `spark.table().printSchema()`.",
+        "stale gold": "Likely cause: ADF pipeline trigger missed a schedule or Databricks cluster auto-terminated. Check ADF monitoring and Databricks job run history.",
     }
     lower = issue_description.lower()
     for key, explanation in root_cause_map.items():
@@ -207,13 +211,15 @@ When answering:
 - Be concise but complete — data engineers need actionable info fast
 """
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_msg),
-    ("human",  "{input}"),
-    MessagesPlaceholder(variable_name="agent_scratchpad"),
-])
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system_msg),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ]
+)
 
-agent          = create_openai_tools_agent(llm, tools, prompt)
+agent = create_openai_tools_agent(llm, tools, prompt)
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=5)
 
 print("DQ Agent ready ✓")
@@ -245,6 +251,7 @@ for question in dq_questions:
 
 # COMMAND ----------
 
+
 def generate_stakeholder_dq_report(metrics: dict) -> str:
     """Use GPT-4o to turn raw DQ metrics into a readable stakeholder report."""
     prompt = f"""
@@ -255,8 +262,12 @@ def generate_stakeholder_dq_report(metrics: dict) -> str:
     Raw DQ metrics:
     {json.dumps(metrics, indent=2, default=str)}
     """
-    resp = llm.invoke([SystemMessage(content="You write clear, concise data engineering status updates."),
-                       {"role": "user", "content": prompt}])
+    resp = llm.invoke(
+        [
+            SystemMessage(content="You write clear, concise data engineering status updates."),
+            {"role": "user", "content": prompt},
+        ]
+    )
     return resp.content
 
 
