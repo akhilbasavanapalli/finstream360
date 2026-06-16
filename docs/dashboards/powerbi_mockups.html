@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinStream360 — Power BI Dashboard Mockups</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --accent: #0f3460;
+    --gold: #e94560;
+    --text: #eaeaea;
+    --muted: #a0a0b0;
+    --green: #4caf50;
+    --orange: #ff9800;
+    --blue: #2196f3;
+    --purple: #9c27b0;
+    --teal: #00bcd4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+  /* Navigation */
+  .nav { background: var(--accent); padding: 10px 20px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 2px solid var(--gold); }
+  .nav button { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: var(--muted); transition: all 0.2s; }
+  .nav button.active { background: var(--gold); color: white; }
+  .nav button:hover:not(.active) { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  /* Dashboard container */
+  .dashboard { display: none; padding: 16px; }
+  .dashboard.active { display: block; }
+
+  /* Header bar */
+  .dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .dash-title { font-size: 18px; font-weight: 700; }
+  .dash-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .refresh-info { font-size: 11px; color: var(--muted); }
+  .status-dot { display: inline-block; width: 8px; height: 8px; background: var(--green); border-radius: 50%; margin-right: 4px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* KPI Cards */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi-card { background: var(--card); border-radius: 8px; padding: 16px; border-left: 4px solid var(--blue); }
+  .kpi-card.green { border-left-color: var(--green); }
+  .kpi-card.red { border-left-color: var(--gold); }
+  .kpi-card.orange { border-left-color: var(--orange); }
+  .kpi-card.purple { border-left-color: var(--purple); }
+  .kpi-card.teal { border-left-color: var(--teal); }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .kpi-value { font-size: 26px; font-weight: 700; margin: 4px 0; }
+  .kpi-delta { font-size: 12px; }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.down { color: var(--gold); }
+
+  /* Charts */
+  .charts-row { display: grid; gap: 12px; margin-bottom: 12px; }
+  .charts-row.two { grid-template-columns: 1fr 1fr; }
+  .charts-row.three { grid-template-columns: 2fr 1fr 1fr; }
+  .charts-row.two-wide { grid-template-columns: 3fr 2fr; }
+  .chart-card { background: var(--card); border-radius: 8px; padding: 16px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+  /* Bar chart */
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .bar-label { width: 80px; text-align: right; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-wrap { flex: 1; background: rgba(255,255,255,0.05); border-radius: 3px; height: 20px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; display: flex; align-items: center; padding-left: 6px; font-size: 10px; font-weight: 600; transition: width 0.8s ease; }
+  .bar-val { width: 52px; text-align: right; font-size: 11px; font-weight: 600; }
+
+  /* Line chart */
+  .line-chart { position: relative; }
+  .line-chart svg { width: 100%; display: block; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { padding: 8px 10px; text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .data-table tr:hover td { background: rgba(255,255,255,0.03); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+  .badge.high { background: rgba(233,69,96,0.2); color: #e94560; }
+  .badge.med { background: rgba(255,152,0,0.2); color: #ff9800; }
+  .badge.low { background: rgba(76,175,80,0.2); color: #4caf50; }
+
+  /* Donut */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Gauge */
+  .gauge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .gauge-item { text-align: center; }
+  .gauge-circle { width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; position: relative; }
+  .gauge-circle::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--card); }
+  .gauge-circle span { position: relative; z-index: 1; }
+  .gauge-label { font-size: 11px; color: var(--muted); }
+
+  /* Map viz */
+  .map-viz { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .state-cell { aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; cursor: pointer; transition: transform 0.15s; }
+  .state-cell:hover { transform: scale(1.1); }
+
+  /* Heatmap */
+  .heatmap { display: grid; }
+  .heatmap-row { display: grid; gap: 2px; }
+  .heatmap-cell { height: 28px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+
+  /* Trend line mini */
+  .sparkline { display: inline-flex; align-items: flex-end; gap: 2px; height: 24px; }
+  .spark-bar { width: 4px; border-radius: 2px 2px 0 0; background: var(--blue); }
+
+  @media (max-width: 600px) {
+    .charts-row.two, .charts-row.three, .charts-row.two-wide { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation Tabs -->
+<div class="nav">
+  <button class="active" onclick="showDash(0, this)">📊 Executive Overview</button>
+  <button onclick="showDash(1, this)">🚨 Fraud Operations</button>
+  <button onclick="showDash(2, this)">👤 Customer 360</button>
+  <button onclick="showDash(3, this)">🗺️ Geographic</button>
+  <button onclick="showDash(4, this)">✅ Data Quality</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- DASHBOARD 1: Executive Financial Overview          -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="dashboard active" id="d0">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">Executive Financial Overview</div>
+      <div class="dash-subtitle">FinStream360 · Snowflake Gold Mart · DirectQuery</div>
+    </div>
+    <div class="refresh-info"><span class="status-dot"></span>Live · Last refresh: 2 min ago · June 16, 2026</div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Total Volume (24h)</div>
+      <div class="kpi-value">$84.3M</div>
+      <div class="kpi-delta up">↑ 12.4% vs yesterday</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Fraud Rate</div>
+      <div class="kpi-value">2.07%</div>
+      <div class="kpi-delta down">↑ 0.3pp — alert threshold</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Revenue at Risk</div>
+      <div class="kpi-value">$1.74M</div>
+      <div class="kpi-delta down">↑ $320K vs last week</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Transactions (24h)</div>
+      <div class="kpi-value">4.32M</div>
+      <div class="kpi-delta up">↑ 8.1% vs yesterday</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Avg Transaction</div>
+      <div class="kpi-value">$19.51</div>
+      <div class="kpi-delta up">↑ $0.42 vs last week</div>
+    </div>
+  </div>
+
+  <div class="charts-row two">
+    <!-- Line chart: hourly volume -->
+    <div class="chart-card">
+      <div class="chart-title">Hourly Transaction Volume + Fraud Count (Today)</div>
+      <svg viewBox="0 0 400 150" style="overflow:visible">
+        <defs>
+          <linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2196f3" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#2196f3" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- Grid lines -->
+        <line x1="30" y1="10" x2="390" y2="10" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+        <line x1="30" y1="40" x2="390" y2="40" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+        <line x1="30" y1="70" x2="390" y2="70" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+        <line x1="30" y1="100" x2="390" y2="100" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+        <line x1="30" y1="130" x2="390" y2="130" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+        <!-- Y labels -->
+        <text x="25" y="12" fill="#a0a0b0" font-size="9" text-anchor="end">500K</text>
+        <text x="25" y="42" fill="#a0a0b0" font-size="9" text-anchor="end">400K</text>
+        <text x="25" y="72" fill="#a0a0b0" font-size="9" text-anchor="end">300K</text>
+        <text x="25" y="102" fill="#a0a0b0" font-size="9" text-anchor="end">200K</text>
+        <text x="25" y="132" fill="#a0a0b0" font-size="9" text-anchor="end">100K</text>
+        <!-- Volume area -->
+        <path d="M30,120 L60,105 L90,90 L120,75 L150,50 L180,40 L210,45 L240,55 L270,70 L300,65 L330,80 L360,95 L390,100" fill="none" stroke="#2196f3" stroke-width="2.5"/>
+        <path d="M30,120 L60,105 L90,90 L120,75 L150,50 L180,40 L210,45 L240,55 L270,70 L300,65 L330,80 L360,95 L390,100 L390,130 L30,130 Z" fill="url(#vg)"/>
+        <!-- Fraud line -->
+        <path d="M30,128 L60,126 L90,124 L120,122 L150,118 L180,115 L210,116 L240,120 L270,122 L300,119 L330,121 L360,124 L390,125" fill="none" stroke="#e94560" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <!-- X labels -->
+        <text x="30" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">00:00</text>
+        <text x="90" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">04:00</text>
+        <text x="150" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">08:00</text>
+        <text x="210" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">12:00</text>
+        <text x="270" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">16:00</text>
+        <text x="330" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">20:00</text>
+        <text x="390" y="145" fill="#a0a0b0" font-size="9" text-anchor="middle">Now</text>
+        <!-- Legend -->
+        <rect x="280" y="5" width="8" height="3" fill="#2196f3" rx="1"/>
+        <text x="292" y="9" fill="#a0a0b0" font-size="9">Volume</text>
+        <line x1="280" y1="17" x2="288" y2="17" stroke="#e94560" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <text x="292" y="20" fill="#a0a0b0" font-size="9">Fraud</text>
+      </svg>
+    </div>
+
+    <!-- Bar chart: by card type -->
+    <div class="chart-card">
+      <div class="chart-title">Volume by Card Type</div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <div class="bar-label">VISA</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:82%;background:#2196f3">$34.6M</div></div>
+          <div class="bar-val">41%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">MASTERCARD</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:61%;background:#9c27b0">$25.8M</div></div>
+          <div class="bar-val">31%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">AMEX</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:35%;background:#00bcd4">$14.8M</div></div>
+          <div class="bar-val">17%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">DISCOVER</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:18%;background:#ff9800">$7.5M</div></div>
+          <div class="bar-val">9%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">OTHER</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:4%;background:#4caf50">$1.6M</div></div>
+          <div class="bar-val">2%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row two">
+    <!-- Weekly trend -->
+    <div class="chart-card">
+      <div class="chart-title">7-Day Transaction Volume Trend ($M)</div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <div class="bar-label">Mon Jun 10</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:66%;background:#1a6bb5">$56.1M</div></div>
+          <div class="bar-val">$56.1M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Tue Jun 11</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:72%;background:#1a6bb5">$61.2M</div></div>
+          <div class="bar-val">$61.2M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Wed Jun 12</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:78%;background:#1a6bb5">$66.3M</div></div>
+          <div class="bar-val">$66.3M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Thu Jun 13</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:80%;background:#1a6bb5">$68.1M</div></div>
+          <div class="bar-val">$68.1M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Fri Jun 14</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:87%;background:#2196f3">$74.0M</div></div>
+          <div class="bar-val">$74.0M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Sat Jun 15</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:93%;background:#42a5f5">$79.1M</div></div>
+          <div class="bar-val">$79.1M</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Today Jun 16</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:99%;background:#e94560">$84.3M</div></div>
+          <div class="bar-val">$84.3M ↑</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top merchants -->
+    <div class="chart-card">
+      <div class="chart-title">Top Merchant Categories by Volume</div>
+      <table class="data-table">
+        <thead><tr><th>Category</th><th>Volume</th><th>Fraud Rate</th><th>Risk</th></tr></thead>
+        <tbody>
+          <tr><td>GROCERY_STORE</td><td>$18.4M</td><td>0.8%</td><td><span class="badge low">Low</span></td></tr>
+          <tr><td>ONLINE_RETAIL</td><td>$15.7M</td><td>4.2%</td><td><span class="badge high">High</span></td></tr>
+          <tr><td>RESTAURANT</td><td>$12.3M</td><td>1.1%</td><td><span class="badge low">Low</span></td></tr>
+          <tr><td>GAS_STATION</td><td>$9.8M</td><td>3.1%</td><td><span class="badge med">Med</span></td></tr>
+          <tr><td>TRAVEL</td><td>$8.9M</td><td>2.7%</td><td><span class="badge med">Med</span></td></tr>
+          <tr><td>ATM_CASH</td><td>$6.2M</td><td>5.9%</td><td><span class="badge high">High</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- DASHBOARD 2: Fraud Operations Center              -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="dashboard" id="d1">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">🚨 Fraud Operations Center</div>
+      <div class="dash-subtitle">Real-time alerts · GBT Model v2.4 · AUC-ROC 0.97</div>
+    </div>
+    <div class="refresh-info"><span class="status-dot"></span>Live · Model scored 4.32M transactions today</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card red">
+      <div class="kpi-label">Fraud Events (24h)</div>
+      <div class="kpi-value">89,424</div>
+      <div class="kpi-delta down">↑ 2.07% fraud rate</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">High-Risk Alerts</div>
+      <div class="kpi-value">2,341</div>
+      <div class="kpi-delta down">Score > 0.85</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Model Recall</div>
+      <div class="kpi-value">91.2%</div>
+      <div class="kpi-delta up">↑ 0.3pp vs last run</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Impossible Travel</div>
+      <div class="kpi-value">23</div>
+      <div class="kpi-delta down">Flagged customers today</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Prevented ($)</div>
+      <div class="kpi-value">$6,578</div>
+      <div class="kpi-delta up">Avg per fraud event</div>
+    </div>
+  </div>
+
+  <div class="charts-row two">
+    <div class="chart-card">
+      <div class="chart-title">Fraud by Merchant Category — Last 7 Days</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">ATM_CASH</div><div class="bar-wrap"><div class="bar-fill" style="width:95%;background:#e94560">5.9%</div></div><div class="bar-val">5.9%</div></div>
+        <div class="bar-row"><div class="bar-label">ONLINE_RETAIL</div><div class="bar-wrap"><div class="bar-fill" style="width:68%;background:#e94560">4.2%</div></div><div class="bar-val">4.2%</div></div>
+        <div class="bar-row"><div class="bar-label">GAS_STATION</div><div class="bar-wrap"><div class="bar-fill" style="width:50%;background:#ff9800">3.1%</div></div><div class="bar-val">3.1%</div></div>
+        <div class="bar-row"><div class="bar-label">TRAVEL</div><div class="bar-wrap"><div class="bar-fill" style="width:44%;background:#ff9800">2.7%</div></div><div class="bar-val">2.7%</div></div>
+        <div class="bar-row"><div class="bar-label">JEWELRY</div><div class="bar-wrap"><div class="bar-fill" style="width:32%;background:#ff9800">2.0%</div></div><div class="bar-val">2.0%</div></div>
+        <div class="bar-row"><div class="bar-label">RESTAURANT</div><div class="bar-wrap"><div class="bar-fill" style="width:18%;background:#4caf50">1.1%</div></div><div class="bar-val">1.1%</div></div>
+        <div class="bar-row"><div class="bar-label">GROCERY_STORE</div><div class="bar-wrap"><div class="bar-fill" style="width:13%;background:#4caf50">0.8%</div></div><div class="bar-val">0.8%</div></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Fraud Score Distribution</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">0.0–0.2</div><div class="bar-wrap"><div class="bar-fill" style="width:99%;background:#4caf50">82.4%</div></div><div class="bar-val">82.4%</div></div>
+        <div class="bar-row"><div class="bar-label">0.2–0.4</div><div class="bar-wrap"><div class="bar-fill" style="width:20%;background:#66bb6a">5.7%</div></div><div class="bar-val">5.7%</div></div>
+        <div class="bar-row"><div class="bar-label">0.4–0.6</div><div class="bar-wrap"><div class="bar-fill" style="width:12%;background:#ffa726">3.8%</div></div><div class="bar-val">3.8%</div></div>
+        <div class="bar-row"><div class="bar-label">0.6–0.8</div><div class="bar-wrap"><div class="bar-fill" style="width:14%;background:#ff7043">4.2%</div></div><div class="bar-val">4.2%</div></div>
+        <div class="bar-row"><div class="bar-label">0.8–1.0</div><div class="bar-wrap"><div class="bar-fill" style="width:13%;background:#e94560">3.9%</div></div><div class="bar-val">3.9%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Top High-Risk Customers Today (Fraud Score > 0.85)</div>
+    <table class="data-table">
+      <thead><tr><th>Customer ID</th><th>Fraud Score</th><th>Txn Count</th><th>Total Amount</th><th>States</th><th>Alert Type</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>CUST-847291</td><td><span style="color:#e94560;font-weight:700">0.97</span></td><td>14</td><td>$8,450</td><td>TX→NY→CA (6h)</td><td><span class="badge high">Impossible Travel</span></td><td><span class="badge high">BLOCKED</span></td></tr>
+        <tr><td>CUST-392847</td><td><span style="color:#e94560;font-weight:700">0.94</span></td><td>8</td><td>$12,200</td><td>FL→GA</td><td><span class="badge high">Velocity Spike</span></td><td><span class="badge med">Review</span></td></tr>
+        <tr><td>CUST-103847</td><td><span style="color:#ff9800;font-weight:700">0.91</span></td><td>5</td><td>$3,890</td><td>NY</td><td><span class="badge med">High Amount</span></td><td><span class="badge med">Review</span></td></tr>
+        <tr><td>CUST-728491</td><td><span style="color:#ff9800;font-weight:700">0.88</span></td><td>11</td><td>$5,670</td><td>CA→NV</td><td><span class="badge med">Off Hours</span></td><td><span class="badge low">Monitor</span></td></tr>
+        <tr><td>CUST-291847</td><td><span style="color:#ff9800;font-weight:700">0.86</span></td><td>7</td><td>$2,340</td><td>TX</td><td><span class="badge med">Velocity Spike</span></td><td><span class="badge low">Monitor</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- DASHBOARD 3: Customer 360                         -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="dashboard" id="d2">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">👤 Customer 360 & RFM Analysis</div>
+      <div class="dash-subtitle">Snowpark Python RFM Segmentation · 500K Active Customers</div>
+    </div>
+    <div class="refresh-info"><span class="status-dot"></span>Live · Segmented daily via Snowflake Task</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Total Customers</div>
+      <div class="kpi-value">498,237</div>
+      <div class="kpi-delta up">↑ 1,243 new this week</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Champions</div>
+      <div class="kpi-value">62,480</div>
+      <div class="kpi-delta up">12.5% of base</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">At-Risk Customers</div>
+      <div class="kpi-value">34,291</div>
+      <div class="kpi-delta down">6.9% — churn risk</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Avg Lifetime Value</div>
+      <div class="kpi-value">$4,820</div>
+      <div class="kpi-delta up">↑ $340 vs last quarter</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Avg Txn Frequency</div>
+      <div class="kpi-value">8.7/mo</div>
+      <div class="kpi-delta up">↑ 0.4 vs last month</div>
+    </div>
+  </div>
+
+  <div class="charts-row two">
+    <div class="chart-card">
+      <div class="chart-title">RFM Customer Segments (Snowpark Python)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">Champions</div><div class="bar-wrap"><div class="bar-fill" style="width:62%;background:#4caf50">62,480</div></div><div class="bar-val">12.5%</div></div>
+        <div class="bar-row"><div class="bar-label">Loyal</div><div class="bar-wrap"><div class="bar-fill" style="width:55%;background:#66bb6a">54,800</div></div><div class="bar-val">11.0%</div></div>
+        <div class="bar-row"><div class="bar-label">Potential Loyal</div><div class="bar-wrap"><div class="bar-fill" style="width:80%;background:#2196f3">79,717</div></div><div class="bar-val">16.0%</div></div>
+        <div class="bar-row"><div class="bar-label">New Customers</div><div class="bar-wrap"><div class="bar-fill" style="width:48%;background:#42a5f5">47,832</div></div><div class="bar-val">9.6%</div></div>
+        <div class="bar-row"><div class="bar-label">At Risk</div><div class="bar-wrap"><div class="bar-fill" style="width:34%;background:#ff9800">34,291</div></div><div class="bar-val">6.9%</div></div>
+        <div class="bar-row"><div class="bar-label">Hibernating</div><div class="bar-wrap"><div class="bar-fill" style="width:95%;background:#78909c">94,665</div></div><div class="bar-val">19.0%</div></div>
+        <div class="bar-row"><div class="bar-label">Lost</div><div class="bar-wrap"><div class="bar-fill" style="width:25%;background:#e94560">24,452</div></div><div class="bar-val">4.9%</div></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Customer Lifetime Value Distribution</div>
+      <div class="bar-chart" style="margin-top:8px">
+        <div class="bar-row"><div class="bar-label">&lt;$500</div><div class="bar-wrap"><div class="bar-fill" style="width:42%;background:#78909c">28%</div></div><div class="bar-val">28%</div></div>
+        <div class="bar-row"><div class="bar-label">$500–$1K</div><div class="bar-wrap"><div class="bar-fill" style="width:36%;background:#42a5f5">24%</div></div><div class="bar-val">24%</div></div>
+        <div class="bar-row"><div class="bar-label">$1K–$5K</div><div class="bar-wrap"><div class="bar-fill" style="width:51%;background:#2196f3">34%</div></div><div class="bar-val">34%</div></div>
+        <div class="bar-row"><div class="bar-label">$5K–$20K</div><div class="bar-wrap"><div class="bar-fill" style="width:20%;background:#4caf50">13%</div></div><div class="bar-val">13%</div></div>
+        <div class="bar-row"><div class="bar-label">&gt;$20K</div><div class="bar-wrap"><div class="bar-fill" style="width:1.5%;background:#ffd700">1%</div></div><div class="bar-val">1%</div></div>
+      </div>
+      <div style="margin-top:16px;font-size:12px;color:var(--muted)">
+        Top 1% customers (&gt;$20K CLV) generate <span style="color:#ffd700;font-weight:700">18%</span> of total revenue
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Top At-Risk Customers (Churn Prevention Priority)</div>
+    <table class="data-table">
+      <thead><tr><th>Customer ID</th><th>Segment</th><th>Last Transaction</th><th>Lifetime Value</th><th>Avg Monthly Spend</th><th>Days Inactive</th><th>Recommended Action</th></tr></thead>
+      <tbody>
+        <tr><td>CUST-482910</td><td><span class="badge high">At Risk</span></td><td>2026-05-18</td><td>$28,400</td><td>$1,850</td><td>29</td><td>High-value retention offer</td></tr>
+        <tr><td>CUST-291847</td><td><span class="badge high">At Risk</span></td><td>2026-05-21</td><td>$14,200</td><td>$920</td><td>26</td><td>Cashback campaign</td></tr>
+        <tr><td>CUST-837291</td><td><span class="badge med">Hibernating</span></td><td>2026-04-30</td><td>$8,900</td><td>$580</td><td>47</td><td>Reactivation email</td></tr>
+        <tr><td>CUST-102938</td><td><span class="badge med">Hibernating</span></td><td>2026-04-22</td><td>$6,700</td><td>$440</td><td>55</td><td>Special offer trigger</td></tr>
+        <tr><td>CUST-748291</td><td><span class="badge high">At Risk</span></td><td>2026-05-29</td><td>$5,200</td><td>$340</td><td>18</td><td>Personal outreach</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- DASHBOARD 4: Geographic Performance               -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="dashboard" id="d3">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">🗺️ Geographic Performance</div>
+      <div class="dash-subtitle">State-Level Analysis · fact_geographic_analysis Gold Table</div>
+    </div>
+    <div class="refresh-info"><span class="status-dot"></span>Live · Last refresh: 4 min ago</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">States Active</div><div class="kpi-value">48</div><div class="kpi-delta up">All continental US</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Highest Fraud State</div><div class="kpi-value">FL</div><div class="kpi-delta down">4.1% fraud rate</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Highest Volume State</div><div class="kpi-value">CA</div><div class="kpi-delta up">$18.4M today</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Cross-State Flags</div><div class="kpi-value">1,247</div><div class="kpi-delta down">Possible card sharing</div></div>
+  </div>
+
+  <div class="charts-row two">
+    <div class="chart-card">
+      <div class="chart-title">Top 10 States by Transaction Volume (Today)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">CA</div><div class="bar-wrap"><div class="bar-fill" style="width:99%;background:#2196f3">$18.4M</div></div><div class="bar-val">$18.4M</div></div>
+        <div class="bar-row"><div class="bar-label">TX</div><div class="bar-wrap"><div class="bar-fill" style="width:78%;background:#2196f3">$14.5M</div></div><div class="bar-val">$14.5M</div></div>
+        <div class="bar-row"><div class="bar-label">NY</div><div class="bar-wrap"><div class="bar-fill" style="width:65%;background:#2196f3">$12.0M</div></div><div class="bar-val">$12.0M</div></div>
+        <div class="bar-row"><div class="bar-label">FL</div><div class="bar-wrap"><div class="bar-fill" style="width:58%;background:#ff9800">$10.7M</div></div><div class="bar-val">$10.7M</div></div>
+        <div class="bar-row"><div class="bar-label">IL</div><div class="bar-wrap"><div class="bar-fill" style="width:43%;background:#2196f3">$8.0M</div></div><div class="bar-val">$8.0M</div></div>
+        <div class="bar-row"><div class="bar-label">GA</div><div class="bar-wrap"><div class="bar-fill" style="width:35%;background:#2196f3">$6.5M</div></div><div class="bar-val">$6.5M</div></div>
+        <div class="bar-row"><div class="bar-label">PA</div><div class="bar-wrap"><div class="bar-fill" style="width:28%;background:#2196f3">$5.2M</div></div><div class="bar-val">$5.2M</div></div>
+        <div class="bar-row"><div class="bar-label">OH</div><div class="bar-wrap"><div class="bar-fill" style="width:22%;background:#2196f3">$4.1M</div></div><div class="bar-val">$4.1M</div></div>
+        <div class="bar-row"><div class="bar-label">AZ</div><div class="bar-wrap"><div class="bar-fill" style="width:18%;background:#2196f3">$3.3M</div></div><div class="bar-val">$3.3M</div></div>
+        <div class="bar-row"><div class="bar-label">NC</div><div class="bar-wrap"><div class="bar-fill" style="width:15%;background:#2196f3">$2.8M</div></div><div class="bar-val">$2.8M</div></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Fraud Rate by State (Top 10 Highest Risk)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">FL</div><div class="bar-wrap"><div class="bar-fill" style="width:70%;background:#e94560">4.1%</div></div><div class="bar-val">4.1%</div></div>
+        <div class="bar-row"><div class="bar-label">NV</div><div class="bar-wrap"><div class="bar-fill" style="width:58%;background:#e94560">3.4%</div></div><div class="bar-val">3.4%</div></div>
+        <div class="bar-row"><div class="bar-label">NY</div><div class="bar-wrap"><div class="bar-fill" style="width:49%;background:#ff9800">2.9%</div></div><div class="bar-val">2.9%</div></div>
+        <div class="bar-row"><div class="bar-label">TX</div><div class="bar-wrap"><div class="bar-fill" style="width:46%;background:#ff9800">2.7%</div></div><div class="bar-val">2.7%</div></div>
+        <div class="bar-row"><div class="bar-label">CA</div><div class="bar-wrap"><div class="bar-fill" style="width:39%;background:#ff9800">2.3%</div></div><div class="bar-val">2.3%</div></div>
+        <div class="bar-row"><div class="bar-label">AZ</div><div class="bar-wrap"><div class="bar-fill" style="width:34%;background:#ffa726">2.0%</div></div><div class="bar-val">2.0%</div></div>
+        <div class="bar-row"><div class="bar-label">GA</div><div class="bar-wrap"><div class="bar-fill" style="width:29%;background:#ffa726">1.7%</div></div><div class="bar-val">1.7%</div></div>
+        <div class="bar-row"><div class="bar-label">IL</div><div class="bar-wrap"><div class="bar-fill" style="width:24%;background:#66bb6a">1.4%</div></div><div class="bar-val">1.4%</div></div>
+        <div class="bar-row"><div class="bar-label">OH</div><div class="bar-wrap"><div class="bar-fill" style="width:19%;background:#4caf50">1.1%</div></div><div class="bar-val">1.1%</div></div>
+        <div class="bar-row"><div class="bar-label">NC</div><div class="bar-wrap"><div class="bar-fill" style="width:15%;background:#4caf50">0.9%</div></div><div class="bar-val">0.9%</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- DASHBOARD 5: Data Quality Monitoring              -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="dashboard" id="d4">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">✅ Data Quality Monitoring</div>
+      <div class="dash-subtitle">AI DQ Agent · LangChain · AUDIT.PIPELINE_RUN_LOG · Snowflake</div>
+    </div>
+    <div class="refresh-info"><span class="status-dot"></span>AI DQ Agent last run: 08:14 AM</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card green"><div class="kpi-label">Pipeline Status</div><div class="kpi-value">✅ Healthy</div><div class="kpi-delta up">All layers current</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Bronze Freshness</div><div class="kpi-value">2 min</div><div class="kpi-delta up">Under 5-min SLA</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Silver Freshness</div><div class="kpi-value">8 min</div><div class="kpi-delta up">Under 15-min SLA</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Gold Freshness</div><div class="kpi-value">22 min</div><div class="kpi-delta up">Under 60-min SLA</div></div>
+    <div class="kpi-card green"><div class="kpi-label">DQ Pass Rate</div><div class="kpi-value">98.6%</div><div class="kpi-delta up">↑ 0.2pp vs yesterday</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">DQ Failures (24h)</div><div class="kpi-value">59,824</div><div class="kpi-delta down">1.4% of rows flagged</div></div>
+  </div>
+
+  <div class="charts-row two">
+    <div class="chart-card">
+      <div class="chart-title">Pipeline Layer Health — Last 24 Hours</div>
+      <table class="data-table">
+        <thead><tr><th>Layer</th><th>Last Run</th><th>Duration</th><th>Rows Processed</th><th>DQ Pass Rate</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Bronze (Streaming)</td><td>Continuous</td><td>30s batches</td><td>50K TPS</td><td>100% (no DQ here)</td><td><span class="badge low">✅ Running</span></td></tr>
+          <tr><td>Silver (MERGE)</td><td>14:22:05</td><td>4m 18s</td><td>4,328,471</td><td>98.6%</td><td><span class="badge low">✅ Success</span></td></tr>
+          <tr><td>Gold Hourly</td><td>14:00:12</td><td>2m 41s</td><td>4,328,471</td><td>N/A</td><td><span class="badge low">✅ Success</span></td></tr>
+          <tr><td>ML Batch Score</td><td>13:45:00</td><td>16m 02s</td><td>10,000,000</td><td>N/A</td><td><span class="badge low">✅ Success</span></td></tr>
+          <tr><td>Snowflake MERGE</td><td>14:05:30</td><td>1m 15s</td><td>4,328,471</td><td>N/A</td><td><span class="badge low">✅ Success</span></td></tr>
+          <tr><td>AI DQ Agent</td><td>08:14:00</td><td>2m 30s</td><td>All layers</td><td>N/A</td><td><span class="badge low">✅ Report sent</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">DQ Failure Breakdown by Reason (Last 7 Days)</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">Null Timestamp</div><div class="bar-wrap"><div class="bar-fill" style="width:55%;background:#ff9800">38.4%</div></div><div class="bar-val">38.4%</div></div>
+        <div class="bar-row"><div class="bar-label">Null Customer ID</div><div class="bar-wrap"><div class="bar-fill" style="width:41%;background:#ffa726">28.5%</div></div><div class="bar-val">28.5%</div></div>
+        <div class="bar-row"><div class="bar-label">Negative Amount</div><div class="bar-wrap"><div class="bar-fill" style="width:29%;background:#e94560">20.1%</div></div><div class="bar-val">20.1%</div></div>
+        <div class="bar-row"><div class="bar-label">Null Transaction ID</div><div class="bar-wrap"><div class="bar-fill" style="width:19%;background:#e94560">13.0%</div></div><div class="bar-val">13.0%</div></div>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:rgba(0,188,212,0.08);border-radius:6px;border-left:3px solid var(--teal);font-size:12px;line-height:1.6">
+        <span style="color:var(--teal);font-weight:700">🤖 AI DQ Agent Analysis:</span><br>
+        "Null timestamp failures (38.4%) are concentrated in the 02:00–03:00 UTC window, suggesting a source system maintenance window. Recommend adding source system health check to pipeline trigger logic. Negative amount failures originate from a specific merchant terminal ID (TERM-84729) — escalate to merchant operations team for terminal recalibration."
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showDash(idx, btn) {
+    document.querySelectorAll('.dashboard').forEach((d,i) => d.classList.toggle('active', i === idx));
+    document.querySelectorAll('.nav button').forEach((b,i) => b.classList.toggle('active', i === idx));
+  }
+</script>
+</body>
+</html>
