@@ -424,8 +424,8 @@ Push to main / PR
 
 ## About the Author
 
-**Akhil Basavanapalli** | Senior Data Engineer
-- 7+ years designing and delivering scalable data platforms on Azure and AWS
+**Akhil Basavanapalli** |  Data Analyst/Engineer
+- Around 7 years designing and delivering scalable data platforms on Azure and AWS
 - Deep expertise in Azure Databricks, Snowflake, PySpark, Microsoft Fabric, and Azure Synapse
 - Proven delivery in financial services, fintech, and enterprise data domains
 - Certifications: Microsoft Azure Data Engineer · Databricks Data Engineer Fundamentals
